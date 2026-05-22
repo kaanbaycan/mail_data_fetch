@@ -10,6 +10,8 @@ import matplotlib.patheffects as pe
 from datetime import datetime, timedelta
 import os
 import glob
+from outlook_bot import check_and_download_specific_mails
+from veri_isleyici import process_and_merge_files
 
 # -----------------------------------------------------------------------------
 # 1. CONSTANTS & CONFIGURATION
@@ -546,8 +548,26 @@ class MarketApp:
     def setup_sidebar_sections(self):
         # Data Management
         data_f = self.create_section("VERİ YÖNETİMİ", is_collapsed=False)
+        
+        # --- OTOMASYON BÖLÜMÜ ---
+        tk.Label(data_f, text="🚀 OUTLOOK OTOMASYONU", font=("Segoe UI", 10, "bold"), bg=THY_BG_LIGHT, fg=THY_RED).pack(pady=(5,0))
+        
+        # X Gönderen Alanı
+        self.create_sidebar_label(data_f, "X (BCSL) Gönderen Mail:", 0)
+        self.ent_sender_x = tk.Entry(data_f, font=("Segoe UI", 9))
+        self.ent_sender_x.pack(fill=tk.X, padx=20, pady=2)
+        
+        # Y Gönderen Alanı
+        self.create_sidebar_label(data_f, "Y (AAZBN) Gönderen Mail:", 0)
+        self.ent_sender_y = tk.Entry(data_f, font=("Segoe UI", 9))
+        self.ent_sender_y.pack(fill=tk.X, padx=20, pady=2)
+
+        self.btn_auto_update = self.create_button(data_f, "📩 OUTLOOK'TAN GÜNCELLE", self.run_outlook_pipeline, THY_RED, THY_WHITE, hover_color=THY_RED_HOVER)
+        
+        tk.Frame(data_f, height=2, bg="#E5E7EB").pack(fill=tk.X, padx=20, pady=10) # Ayırıcı Çizgi
+
         self.btn_load_csv = self.create_button(data_f, "1. Ana CSV Yükle", self.load_initial_csv, THY_WHITE, THY_NAVY, is_outline=True)
-        self.btn_update_excel = self.create_button(data_f, "2. Excel Güncelle", self.load_update_excel, THY_RED, THY_WHITE, hover_color=THY_RED_HOVER)
+        self.btn_update_excel = self.create_button(data_f, "2. Excel Güncelle (Manuel)", self.load_update_excel, THY_WHITE, THY_NAVY, is_outline=True)
         self.btn_save_csv = self.create_button(data_f, "3. CSV Kaydet", self.save_updated_csv, THY_NAVY, THY_WHITE, hover_color=THY_NAVY_HOVER)
         
         # New Baz Senaryo Button
@@ -871,6 +891,81 @@ class MarketApp:
         
         analyze_and_plot(plot_df, params, self.fig)
         self.canvas.draw()
+
+    def run_outlook_pipeline(self):
+        sender_x = self.ent_sender_x.get().strip()
+        sender_y = self.ent_sender_y.get().strip()
+        
+        if not sender_x or not sender_y:
+            messagebox.showwarning("Eksik Bilgi", "Lütfen X ve Y gönderen mail adreslerini girin.")
+            return
+
+        # Kullanıcıya bilgi ver
+        self.lbl_file_status.config(text="⏳ Outlook taranıyor...")
+        self.root.update()
+
+        try:
+            # 1. Adım: Outlook'tan indir
+            success = check_and_download_specific_mails(sender_x, sender_y, folder_name="jet fuel")
+            
+            if not success:
+                self.lbl_file_status.config(text="❌ Mailler bulunamadı.")
+                messagebox.showerror("Hata", "Bugün gelen 2 mail henüz bulunamadı. Lütfen Outlook'u kontrol edin.")
+                return
+
+            # 2. Adım: Birleştir
+            self.lbl_file_status.config(text="⏳ Excel birleştiriliyor...")
+            self.root.update()
+            process_and_merge_files()
+
+            # 3. Adım: Mevcut CSV'yi güncelle (main_vis içindeki mevcut mantığı kullan)
+            # Guncel_Master_Veri.xlsx dosyasını load_update_excel'e gönderiyoruz
+            self.load_automated_excel("Guncel_Master_Veri.xlsx")
+            
+            self.lbl_file_status.config(text="✅ Veri güncellendi!")
+            messagebox.showinfo("Başarılı", "Outlook verileri başarıyla çekildi ve grafik güncellendi!")
+
+        except Exception as e:
+            self.lbl_file_status.config(text="❌ Hata oluştu.")
+            messagebox.showerror("Sistem Hatası", f"Beklenmedik bir hata: {e}")
+
+    def load_automated_excel(self, path):
+        """Otomatik besleme için load_update_excel'in basitleştirilmiş hali."""
+        try:
+            df_up = pd.read_excel(path, skiprows=4)
+            df_up = df_up.iloc[:, [0, 1, 2]]
+            df_up.columns = ["tarih","brent","cif med"]
+            df_up["tarih"] = pd.to_datetime(df_up["tarih"])
+            df_up["brent"] = pd.to_numeric(df_up["brent"], errors='coerce')
+            df_up["cif med"] = pd.to_numeric(df_up["cif med"], errors='coerce')
+            df_up = df_up.dropna(subset=["tarih"])
+
+            if self.df is None:
+                if os.path.exists(PERSISTENT_FILE):
+                    self.df = pd.read_csv(PERSISTENT_FILE)
+                    self.df["tarih"] = pd.to_datetime(self.df["tarih"])
+                else:
+                    self.df = pd.DataFrame(columns=["tarih","brent","cif med"])
+
+            # Güncelleme
+            for _, row in df_up.iterrows():
+                if pd.isna(row['brent']) and pd.isna(row['cif med']): continue
+                match = self.df.index[self.df['tarih'] == row['tarih']].tolist()
+                if match:
+                    idx = match[0]
+                    if pd.notna(row['brent']): self.df.at[idx, 'brent'] = row['brent']
+                    if pd.notna(row['cif med']): self.df.at[idx, 'cif med'] = row['cif med']
+                else:
+                    self.df = pd.concat([self.df, pd.DataFrame([row])], ignore_index=True)
+
+            self.df['brent_katsayisi'] = self.df['cif med'] / self.df['brent']
+            self.df = self.df.sort_values('tarih').reset_index(drop=True)
+            self.df.to_csv(PERSISTENT_FILE, index=False)
+            self.calculate_insights()
+            self.update_dashboard_tab()
+            self.update_plot()
+        except Exception as e:
+            print(f"Otomatik yükleme hatası: {e}")
 
     def save_image(self):
         if self.df is None: return
