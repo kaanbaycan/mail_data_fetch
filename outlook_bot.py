@@ -7,7 +7,10 @@ FILTER_SENDER = ""  # Örn: "ornek@sirket.com" (Boş bırakılırsa herkesi kabu
 FILTER_KEYWORDS = ["rapor", "excel", "veri"]  # Konuda geçmesi gereken kelimeler
 SAVE_DIR = "indirilen_ekler"
 
-def download_attachments():
+def download_attachments(keywords=None):
+    if keywords is None:
+        keywords = ["rapor", "excel", "veri"]
+    
     # Klasör yoksa oluştur
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
@@ -24,7 +27,7 @@ def download_attachments():
         # Mesajları tarihe göre sırala (Sondan başa)
         messages.Sort("[ReceivedTime]", True)
 
-        print("Mailler kontrol ediliyor...")
+        print(f"Mailler kontrol ediliyor... (Filtre: {', '.join(keywords)})")
 
         for message in messages:
             try:
@@ -33,7 +36,7 @@ def download_attachments():
                 
                 # Filtreleme Kontrolleri
                 sender_match = not FILTER_SENDER or (FILTER_SENDER.lower() in sender.lower())
-                keyword_match = any(kw.lower() in subject.lower() for kw in FILTER_KEYWORDS)
+                keyword_match = any(kw.lower() in subject.lower() for kw in keywords)
 
                 if sender_match and keyword_match:
                     if message.Attachments.Count > 0:
