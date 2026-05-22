@@ -1,65 +1,53 @@
-import pandas as pd
+import openpyxl
 import os
 import glob
 
-# --- AYARLAR ---
 SOURCE_DIR = "indirilen_ekler"
-MASTER_FILE = "ana_veriler.xlsx"
+OUTPUT_FILE = "Guncel_Master_Veri.xlsx"
 
-def process_excel_files():
-    # İndirilen ekler klasöründeki excel dosyalarını bul
-    excel_files = glob.glob(os.path.join(SOURCE_DIR, "*.xlsx")) + glob.glob(os.path.join(SOURCE_DIR, "*.xls"))
-    
-    if not excel_files:
-        print("İşlenecek yeni dosya bulunamadı.")
+def process_and_merge_files():
+    files = glob.glob(os.path.join(SOURCE_DIR, "*.xlsx"))
+    if len(files) < 2:
+        print("İşlem için en az 2 dosya gerekiyor.")
         return
 
-    all_data = []
+    # 1. Dosyaları yükle
+    file_a = files[0]
+    file_b = files[1]
     
-    # Mevcut ana dosya varsa oku (tekrarı önlemek için veya üzerine eklemek için)
-    if os.path.exists(MASTER_FILE):
-        master_df = pd.read_excel(MASTER_FILE)
-        all_data.append(master_df)
-        print(f"Mevcut {MASTER_FILE} dosyası yüklendi.")
-    else:
-        master_df = pd.DataFrame()
-        print("Yeni ana dosya oluşturulacak.")
+    wb_a = openpyxl.load_workbook(file_a)
+    ws_a = wb_a.active
 
-    for file in excel_files:
-        try:
-            print(f"İşleniyor: {file}")
-            # Excel'i oku
-            df = pd.read_excel(file)
-            
-            # Buraya özel sütun seçme mantığı eklenebilir
-            # df = df[["Tarih", "Müşteri", "Tutar"]] gibi
-            
-            all_data.append(df)
-            
-            # İşlenen dosyayı arşive taşıma veya silme (isteğe bağlı)
-            # os.rename(file, os.path.join("arsiv", os.path.basename(file)))
-            
-        except Exception as e:
-            print(f"Dosya okunurken hata oluştu ({file}): {e}")
+    wb_b = openpyxl.load_workbook(file_b)
+    ws_b = wb_b.active
 
-    if all_data:
-        # Tüm verileri birleştir
-        final_df = pd.concat(all_data, ignore_index=True)
-        
-        # Eğer tamamen aynı satırlar varsa temizle
-        final_df = final_df.drop_duplicates()
-        
-        # Ana dosyaya kaydet
-        final_df.to_excel(MASTER_FILE, index=False)
-        print(f"İşlem tamamlandı! Toplam satır sayısı: {len(final_df)}")
-        
-        # İşlenen dosyaları temizle (isteğe bağlı - her seferinde aynı veriyi çekmemek için)
-        # cleanup_source_dir(excel_files)
+    # 5. satırdaki başlıkları bul (Row 5)
+    headers = [cell.value for cell in ws_a[5]]
+    
+    try:
+        col_bcsl = headers.index("BCSL0018") + 1
+        col_aazbn = headers.index("AAZBN00") + 1
+    except ValueError as e:
+        print(f"Hata: Sütun başlıkları bulunamadı! {e}")
+        return
 
-def cleanup_source_dir(files):
-    for f in files:
-        os.remove(f)
-    print("İşlenen kaynak dosyalar temizlendi.")
+    # Hangi dosya kimin? (Hangi dosyada hangi sütun daha doluysa o günceldir)
+    # Ya da basitçe: B dosyasındaki AAZBN00 verilerini A dosyasına kopyalayalım.
+    # (Eğer A dosyası BCSL0018 için güncelse)
+    
+    print(f"Sütunlar bulundu: BCSL0018 (Kolon {col_bcsl}), AAZBN00 (Kolon {col_aazbn})")
+
+    # B'den A'ya AAZBN00 sütununu aktar (6. satırdan itibaren)
+    for row in range(6, ws_a.max_row + 1):
+        val_b = ws_b.cell(row=row, column=col_aazbn).value
+        # Sadece boş olmayanları veya tümünü aktarabiliriz
+        ws_a.cell(row=row, column=col_aazbn).value = val_b
+
+    # A'dan B'ye BCSL0018 sütununu aktar (Ya da tam tersi, ikisini tek dosyada birleştir)
+    # Burada mantık: wb_a artık hem kendi BCSL0018'ine hem de B'den gelen AAZBN00'e sahip.
+
+    wb_a.save(OUTPUT_FILE)
+    print(f"Başarıyla birleştirildi ve '{OUTPUT_FILE}' olarak kaydedildi.")
 
 if __name__ == "__main__":
-    process_excel_files()
+    process_and_merge_files()
