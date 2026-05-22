@@ -4,32 +4,29 @@ import schedule
 import time
 import os
 
-def run_bot_logic(senders, keywords):
+def run_bot_logic(senders, keywords, folder_name):
     print(f"\n--- KONTROL BAŞLATILDI ({time.strftime('%H:%M:%S')}) ---")
     
-    # 1. Adım: Mailleri kontrol et ve sadece hepsi varsa indir
-    success = check_and_download_specific_mails(senders, keywords)
+    # 1. Adım: Belirlenen klasörde mailleri kontrol et
+    success = check_and_download_specific_mails(senders, keywords, folder_name=folder_name)
     
     if success:
         # 2. Adım: İndirilen dosyaları işle
         print("Adım 2: Veriler ana dosyaya işleniyor...")
         process_excel_files()
         print("--- TÜM SÜREÇ BAŞARIYLA TAMAMLANDI ---\n")
-        return True # İşlem bitti
+        return True
     else:
-        print("Eksik mail olduğu için işlem yapılamadı. Bir sonraki kontrolde tekrar denenecek.")
-        return False # Hala bekliyoruz
+        print(f"Eksik mail olduğu için işlem yapılamadı. {folder_name} klasörü kontrol edilmeye devam edilecek.")
+        return False
 
-def scheduled_job(senders, keywords):
-    # Belirlenen saatte kontrolü başlat
-    # Eğer eksik varsa 15 dakikada bir tekrar dene
-    completed = run_bot_logic(senders, keywords)
+def scheduled_job(senders, keywords, folder_name):
+    completed = run_bot_logic(senders, keywords, folder_name)
     
     if not completed:
-        # Geçici bir görev oluştur: 15 dakikada bir çalış ve tamamlanınca kendini iptal et
         def retry():
             nonlocal completed
-            completed = run_bot_logic(senders, keywords)
+            completed = run_bot_logic(senders, keywords, folder_name)
             if completed:
                 return schedule.CancelJob
 
@@ -38,14 +35,15 @@ def scheduled_job(senders, keywords):
 def main():
     print("--- ÖZEL MAİL VERİ ÇEKME BOTU ---")
     
+    # Klasör adını al
+    folder_name = input("Outlook'taki klasör adını girin (Varsayılan için Enter'a basın - jet fuel): ")
+    if not folder_name:
+        folder_name = "jet fuel"
+
     # Gönderenleri al
     sender_input = input("Mail beklediğiniz kişilerin e-posta adreslerini girin (Virgülle ayırın): ")
     senders = [s.strip() for s in sender_input.split(",") if s.strip()]
     
-    if len(senders) < 2:
-        print("Uyarı: En az 2 kişi girmelisiniz (X ve Y).")
-        # Test için varsayılanlar eklenebilir veya kullanıcı zorlanabilir
-
     # Konu filtresi al
     subject_input = input("Maillerin konusunda geçmesi gereken ortak kelimeleri girin: ")
     keywords = [k.strip() for k in subject_input.split(",") if k.strip()]
@@ -53,13 +51,13 @@ def main():
     run_time = input("Botun her gün ilk kontrolü yapacağı saati girin (Örn: 09:30): ")
     
     # Zamanlayıcıyı kur
-    schedule.every().day.at(run_time).do(scheduled_job, senders=senders, keywords=keywords)
-    print(f"\nBot kuruldu! Her gün saat {run_time}'da başlayacak ve tüm mailler gelene kadar 15 dk'da bir deneyecek.")
+    schedule.every().day.at(run_time).do(scheduled_job, senders=senders, keywords=keywords, folder_name=folder_name)
+    print(f"\nBot kuruldu! '{folder_name}' klasörü taranacak.")
     
     # Manuel çalıştırma
     ilk_calisma = input("Hemen şimdi kontrol edilsin mi? (e/h): ")
     if ilk_calisma.lower() == 'e':
-        run_bot_logic(senders, keywords)
+        run_bot_logic(senders, keywords, folder_name)
 
     while True:
         schedule.run_pending()

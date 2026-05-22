@@ -7,24 +7,39 @@ FILTER_SENDER = ""  # Örn: "ornek@sirket.com" (Boş bırakılırsa herkesi kabu
 FILTER_KEYWORDS = ["rapor", "excel", "veri"]  # Konuda geçmesi gereken kelimeler
 SAVE_DIR = "indirilen_ekler"
 
-def check_and_download_specific_mails(required_senders, keywords):
+def check_and_download_specific_mails(required_senders, keywords, folder_name="Inbox"):
     """
-    Belirli gönderenlerden beklenen maillerin gelip gelmediğini kontrol eder.
-    Hepsi gelmişse indirir ve True döner.
+    Belirlenen klasör altında beklenen mailleri arar.
     """
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
 
     try:
         outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
-        inbox = outlook.GetDefaultFolder(6)
-        messages = inbox.Items
+        
+        # Klasörü bul
+        root_folder = outlook.GetDefaultFolder(6) # Inbox
+        target_folder = root_folder
+
+        if folder_name.lower() != "inbox":
+            try:
+                # Önce Inbox'ın altında ara
+                target_folder = root_folder.Folders[folder_name]
+            except:
+                try:
+                    # Bulamazsa ana dizinde (Inbox ile aynı seviyede) ara
+                    target_folder = root_folder.Parent.Folders[folder_name]
+                except:
+                    print(f"HATA: '{folder_name}' klasörü bulunamadı! 'Inbox' kullanılıyor.")
+                    target_folder = root_folder
+
+        messages = target_folder.Items
         messages.Sort("[ReceivedTime]", True)
 
         found_senders = set()
         mails_to_download = []
 
-        print(f"Kontrol ediliyor: {required_senders}")
+        print(f"'{target_folder.Name}' klasörü taranıyor... (Hedef: {required_senders})")
 
         # Son 24 saatteki maillere bakmak mantıklı olabilir
         for message in messages:
