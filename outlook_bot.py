@@ -7,56 +7,63 @@ FILTER_SENDER = ""  # Örn: "ornek@sirket.com" (Boş bırakılırsa herkesi kabu
 FILTER_KEYWORDS = ["rapor", "excel", "veri"]  # Konuda geçmesi gereken kelimeler
 SAVE_DIR = "indirilen_ekler"
 
-def download_attachments(keywords=None):
-    if keywords is None:
-        keywords = ["rapor", "excel", "veri"]
-    
-    # Klasör yoksa oluştur
+def check_and_download_specific_mails(required_senders, keywords):
+    """
+    Belirli gönderenlerden beklenen maillerin gelip gelmediğini kontrol eder.
+    Hepsi gelmişse indirir ve True döner.
+    """
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
-        print(f"Klasör oluşturuldu: {SAVE_DIR}")
 
     try:
-        # Outlook bağlantısı
         outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
-        
-        # Gelen Kutusu (6 = olFolderInbox)
         inbox = outlook.GetDefaultFolder(6)
         messages = inbox.Items
-        
-        # Mesajları tarihe göre sırala (Sondan başa)
         messages.Sort("[ReceivedTime]", True)
 
-        print(f"Mailler kontrol ediliyor... (Filtre: {', '.join(keywords)})")
+        found_senders = set()
+        mails_to_download = []
 
+        print(f"Kontrol ediliyor: {required_senders}")
+
+        # Son 24 saatteki maillere bakmak mantıklı olabilir
         for message in messages:
             try:
-                subject = message.Subject
-                sender = message.SenderEmailAddress
+                sender = message.SenderEmailAddress.lower()
+                subject = message.Subject.lower()
                 
-                # Filtreleme Kontrolleri
-                sender_match = not FILTER_SENDER or (FILTER_SENDER.lower() in sender.lower())
-                keyword_match = any(kw.lower() in subject.lower() for kw in keywords)
-
-                if sender_match and keyword_match:
+                # Bu mail beklediğimiz kişilerden birinden mi?
+                matching_sender = next((s for s in required_senders if s.lower() in sender), None)
+                
+                if matching_sender and any(kw.lower() in subject for kw in keywords):
                     if message.Attachments.Count > 0:
-                        print(f"Uygun mail bulundu: {subject}")
-                        for attachment in message.Attachments:
-                            if attachment.FileName.endswith((".xlsx", ".xls", ".csv")):
-                                file_path = os.path.join(os.getcwd(), SAVE_DIR, attachment.FileName)
-                                attachment.SaveAsFile(file_path)
-                                print(f"Ek indirildi: {attachment.FileName}")
-                        
-                        # Sadece en güncel olanı indirmek istersen burada break diyebilirsin
-                        # break 
-
-            except Exception as e:
-                # Bazı sistem mesajları hataya sebep olabilir, pas geçiyoruz
+                        found_senders.add(matching_sender)
+                        mails_to_download.append(message)
+                
+                # Eğer tüm gönderenleri bulduysak aramayı durdur (en güncelleri aldık)
+                if len(found_senders) == len(required_senders):
+                    break
+            except:
                 continue
 
+        # KURAL: Her iki mail de gelmiş mi?
+        if len(found_senders) == len(required_senders):
+            print("BAŞARILI: Beklenen tüm mailler bulundu. İndirme başlıyor...")
+            for msg in mails_to_download:
+                for attachment in msg.Attachments:
+                    if attachment.FileName.endswith((".xlsx", ".xls", ".csv")):
+                        file_path = os.path.join(os.getcwd(), SAVE_DIR, attachment.FileName)
+                        attachment.SaveAsFile(file_path)
+                        print(f"İndirildi: {attachment.FileName} (Gönderen: {msg.SenderEmailAddress})")
+            return True
+        else:
+            missing = set(required_senders) - found_senders
+            print(f"EKSİK: Şu kişilerden mail bekleniyor: {missing}")
+            return False
+
     except Exception as e:
-        print(f"Hata oluştu: {e}")
-        print("Not: Bu script sadece Windows üzerinde Outlook masaüstü uygulaması yüklüyken çalışır.")
+        print(f"Hata: {e}")
+        return False
 
 if __name__ == "__main__":
     download_attachments()
