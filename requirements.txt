@@ -1,3 +1,4 @@
 pandas
 openpyxl
+schedule
 pywin32; platform_system == "Windows"

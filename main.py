@@ -1,19 +1,44 @@
 from outlook_bot import download_attachments
 from veri_isleyici import process_excel_files
+import schedule
+import time
 import os
 
-def main():
-    print("--- BOT BAŞLATILDI ---")
+def run_bot():
+    print(f"\n--- İŞLEM BAŞLATILDI ({time.strftime('%H:%M:%S')}) ---")
     
     # 1. Adım: Mailleri kontrol et ve ekleri indir
-    print("\nAdım 1: Outlook mailleri taranıyor...")
+    print("Adım 1: Outlook mailleri taranıyor...")
     download_attachments()
     
     # 2. Adım: İndirilen dosyaları işle
-    print("\nAdım 2: Veriler ana dosyaya işleniyor...")
+    print("Adım 2: Veriler ana dosyaya işleniyor...")
     process_excel_files()
     
-    print("\n--- İŞLEM TAMAMLANDI ---")
+    print("--- İŞLEM TAMAMLANDI ---\n")
+    print("Sıradaki çalışma saati bekleniyor... (Durdurmak için CTRL+C)")
+
+def main():
+    print("--- MAİL VERİ ÇEKME BOTU ZAMANLAYICI ---")
+    run_time = input("Botun her gün çalışmasını istediğiniz saati girin (Örn: 09:30 veya 17:45): ")
+    
+    try:
+        # Zamanlayıcıyı kur
+        schedule.every().day.at(run_time).do(run_bot)
+        print(f"\nBot kuruldu! Her gün saat {run_time} olduğunda çalışacak.")
+        print("Not: Botun çalışması için bu pencerenin açık kalması gerekir.")
+        
+        # İlk başta bir kere çalıştırılsın mı?
+        ilk_calisma = input("Hemen şimdi bir kere çalıştırılsın mı? (e/h): ")
+        if ilk_calisma.lower() == 'e':
+            run_bot()
+
+        while True:
+            schedule.run_pending()
+            time.sleep(60) # Her dakika kontrol et
+            
+    except Exception as e:
+        print(f"Hata: Saat formatı yanlış olabilir. Lütfen 'SS:DD' formatında girin. ({e})")
 
 if __name__ == "__main__":
     main()
