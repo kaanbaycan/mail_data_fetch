@@ -4,45 +4,46 @@ import schedule
 import time
 import os
 
-def run_bot_logic(folder_name):
+def run_bot_logic(sender_x, sender_y, folder_name):
     print(f"\n--- KONTROL BAŞLATILDI ({time.strftime('%H:%M:%S')}) ---")
     
-    # Bugünün son 2 mailini bekle ve indir
-    success = check_and_download_specific_mails(folder_name=folder_name)
+    # Mailleri kontrol et ve X/Y olarak indir
+    success = check_and_download_specific_mails(sender_x, sender_y, folder_name=folder_name)
     
     if success:
-        print("Adım 2: Veriler birleştiriliyor (Merge işlemi)...")
+        print("Adım 2: Veriler birleştiriliyor (BCSL from X, AAZBN from Y)...")
         process_and_merge_files()
         print("--- TÜM SÜREÇ BAŞARIYLA TAMAMLANDI ---\n")
         return True
     else:
-        print(f"Eksik mail (Bugünlük 2 mail henüz gelmemiş). 15 dk sonra tekrar denenecek.")
+        print(f"Eksik mail: Bugün her iki kişiden de mail gelmesi bekleniyor.")
         return False
 
-def scheduled_job(folder_name):
-    completed = run_bot_logic(folder_name)
+def scheduled_job(sender_x, sender_y, folder_name):
+    completed = run_bot_logic(sender_x, sender_y, folder_name)
     if not completed:
         def retry():
             nonlocal completed
-            completed = run_bot_logic(folder_name)
+            completed = run_bot_logic(sender_x, sender_y, folder_name)
             if completed:
                 return schedule.CancelJob
         schedule.every(15).minutes.do(retry)
 
 def main():
-    print("--- JET FUEL EXCEL ÇEKME BOTU ---")
+    print("--- JET FUEL ÖZEL BİRLEŞTİRME BOTU ---")
     
-    folder_name = input("Outlook klasör adı (Varsayılan: jet fuel): ")
-    if not folder_name:
-        folder_name = "jet fuel"
-
+    folder_name = input("Outlook klasör adı (Varsayılan: jet fuel): ") or "jet fuel"
+    
+    sender_x = input("X Kişisi (BCSL güncelleyen) mail adresi: ")
+    sender_y = input("Y Kişisi (AAZBN güncelleyen) mail adresi: ")
+    
     run_time = input("Her gün çalışacağı saat (Örn: 09:30): ")
     
-    schedule.every().day.at(run_time).do(scheduled_job, folder_name=folder_name)
-    print(f"\nBot kuruldu! '{folder_name}' klasöründe her gün saat {run_time}'da 2 mail aranacak.")
+    schedule.every().day.at(run_time).do(scheduled_job, sender_x=sender_x, sender_y=sender_y, folder_name=folder_name)
+    print(f"\nBot kuruldu! X:{sender_x} ve Y:{sender_y} mailleri beklenecek.")
     
     if input("Hemen şimdi kontrol edilsin mi? (e/h): ").lower() == 'e':
-        run_bot_logic(folder_name)
+        run_bot_logic(sender_x, sender_y, folder_name)
 
     while True:
         schedule.run_pending()

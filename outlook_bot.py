@@ -4,7 +4,18 @@ from datetime import datetime, date
 
 SAVE_DIR = "indirilen_ekler"
 
-def check_and_download_specific_mails(folder_name="jet fuel"):
+def get_sender_email(message):
+    try:
+        email = message.SenderEmailAddress
+        if email and "/o=" in email:
+            try:
+                if message.SenderEmailType == "EX":
+                    return message.Sender.GetExchangeUser().PrimarySmtpAddress
+            except: pass
+        return email.lower() if email else ""
+    except: return ""
+
+def check_and_download_specific_mails(sender_x, sender_y, folder_name="jet fuel"):
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
 
@@ -25,32 +36,39 @@ def check_and_download_specific_mails(folder_name="jet fuel"):
         messages.Sort("[ReceivedTime]", True)
 
         today = date.today()
-        found_mails = []
+        found_x = False
+        found_y = False
+
+        print(f"\n--- Bugünün Mailleri Taranıyor ({sender_x} ve {sender_y}) ---")
 
         for message in messages:
-            try:
-                if message.ReceivedTime.date() == today:
-                    found_mails.append(message)
-                if len(found_mails) == 2 or message.ReceivedTime.date() < today:
-                    break
-            except: continue
+            if message.ReceivedTime.date() != today:
+                if message.ReceivedTime.date() < today: break
+                continue
 
-        if len(found_mails) == 2:
-            print("\n2 mail bulundu. Gönderen ismine göre kaydediliyor...")
-            for i, msg in enumerate(found_mails):
-                # Gönderen ismini temizle (dosya adı olacağı için)
-                s_name = "".join(x for x in msg.SenderName if x.isalnum())
-                for attachment in msg.Attachments:
+            email = get_sender_email(message)
+            
+            # X kişisi mi?
+            if not found_x and sender_x.lower() in email:
+                for attachment in message.Attachments:
                     if attachment.FileName.endswith((".xlsx", ".xls")):
-                        # Dosya adının başına gönderen ismini ekle
-                        file_name = f"{s_name}_{attachment.FileName}"
-                        file_path = os.path.join(os.getcwd(), SAVE_DIR, file_name)
-                        attachment.SaveAsFile(file_path)
-                        print(f" -> Kaydedildi: {file_name}")
-            return True
-        else:
-            print(f"Eksik mail: Bugün şu ana kadar {len(found_mails)} mail geldi.")
-            return False
+                        attachment.SaveAsFile(os.path.join(os.getcwd(), SAVE_DIR, "X_file.xlsx"))
+                        print(f" -> X (BCSL) dosyası indirildi.")
+                        found_x = True
+                        break
+            
+            # Y kişisi mi?
+            elif not found_y and sender_y.lower() in email:
+                for attachment in message.Attachments:
+                    if attachment.FileName.endswith((".xlsx", ".xls")):
+                        attachment.SaveAsFile(os.path.join(os.getcwd(), SAVE_DIR, "Y_file.xlsx"))
+                        print(f" -> Y (AAZBN) dosyası indirildi.")
+                        found_y = True
+                        break
+
+            if found_x and found_y: break
+
+        return found_x and found_y
     except Exception as e:
         print(f"Hata: {e}")
         return False
