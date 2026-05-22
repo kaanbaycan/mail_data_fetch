@@ -1,5 +1,5 @@
 from outlook_bot import check_and_download_specific_mails
-from veri_isleyici import process_excel_files
+from veri_isleyici import process_and_merge_files
 import schedule
 import time
 import os
@@ -8,12 +8,11 @@ def run_bot_logic(folder_name):
     print(f"\n--- KONTROL BAŞLATILDI ({time.strftime('%H:%M:%S')}) ---")
     
     # Bugünün son 2 mailini bekle ve indir
-    # required_senders ve keywords artık boş gönderilebilir, fonksiyon içinde kullanılmıyor
-    success = check_and_download_specific_mails([], [], folder_name=folder_name)
+    success = check_and_download_specific_mails(folder_name=folder_name)
     
     if success:
-        print("Adım 2: Veriler ana dosyaya işleniyor...")
-        process_excel_files()
+        print("Adım 2: Veriler birleştiriliyor (Merge işlemi)...")
+        process_and_merge_files()
         print("--- TÜM SÜREÇ BAŞARIYLA TAMAMLANDI ---\n")
         return True
     else:
