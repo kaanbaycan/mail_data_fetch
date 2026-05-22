@@ -552,15 +552,11 @@ class MarketApp:
         # --- OTOMASYON BÖLÜMÜ ---
         tk.Label(data_f, text="🚀 OUTLOOK OTOMASYONU", font=("Segoe UI", 10, "bold"), bg=THY_BG_LIGHT, fg=THY_RED).pack(pady=(5,0))
         
-        # X Gönderen Alanı
-        self.create_sidebar_label(data_f, "X (BCSL) Gönderen Mail:", 0)
-        self.ent_sender_x = tk.Entry(data_f, font=("Segoe UI", 9))
-        self.ent_sender_x.pack(fill=tk.X, padx=20, pady=2)
-        
-        # Y Gönderen Alanı
-        self.create_sidebar_label(data_f, "Y (AAZBN) Gönderen Mail:", 0)
-        self.ent_sender_y = tk.Entry(data_f, font=("Segoe UI", 9))
-        self.ent_sender_y.pack(fill=tk.X, padx=20, pady=2)
+        # Klasör Alanı
+        self.create_sidebar_label(data_f, "Outlook Klasör Adı:", 0)
+        self.ent_folder = tk.Entry(data_f, font=("Segoe UI", 9))
+        self.ent_folder.insert(0, "jet fuel")
+        self.ent_folder.pack(fill=tk.X, padx=20, pady=2)
 
         self.btn_auto_update = self.create_button(data_f, "📩 OUTLOOK'TAN GÜNCELLE", self.run_outlook_pipeline, THY_RED, THY_WHITE, hover_color=THY_RED_HOVER)
         
@@ -893,20 +889,15 @@ class MarketApp:
         self.canvas.draw()
 
     def run_outlook_pipeline(self):
-        sender_x = self.ent_sender_x.get().strip()
-        sender_y = self.ent_sender_y.get().strip()
+        folder_name = self.ent_folder.get().strip() or "jet fuel"
         
-        if not sender_x or not sender_y:
-            messagebox.showwarning("Eksik Bilgi", "Lütfen X ve Y gönderen mail adreslerini girin.")
-            return
-
         # Kullanıcıya bilgi ver
         self.lbl_file_status.config(text="⏳ Outlook taranıyor...")
         self.root.update()
 
         try:
-            # 1. Adım: Outlook'tan indir
-            success = check_and_download_specific_mails(sender_x, sender_y, folder_name="jet fuel")
+            # 1. Adım: Outlook'tan indir (Sadece bugün gelen son 2 mail)
+            success = check_and_download_specific_mails(folder_name=folder_name)
             
             if not success:
                 self.lbl_file_status.config(text="❌ Mailler bulunamadı.")
