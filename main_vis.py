@@ -549,15 +549,18 @@ class MarketApp:
         # Data Management
         data_f = self.create_section("VERİ YÖNETİMİ", is_collapsed=False)
         
-        # --- OTOMASYON BÖLÜMÜ ---
-        tk.Label(data_f, text="🚀 OUTLOOK OTOMASYONU", font=("Segoe UI", 10, "bold"), bg=THY_BG_LIGHT, fg=THY_RED).pack(pady=(5,0))
+        # --- OTOMASYON BÖLÜMÜ (Alt çerçeve içine alarak grid çakışmasını önlüyoruz) ---
+        auto_f = tk.Frame(data_f, bg=THY_BG_LIGHT)
+        auto_f.pack(fill=tk.X, padx=20, pady=5)
         
-        # Klasör Alanı
-        self.create_sidebar_label(data_f, "Outlook Klasör Adı:", 0)
-        self.ent_folder = tk.Entry(data_f, font=("Segoe UI", 9))
+        tk.Label(auto_f, text="🚀 OUTLOOK OTOMASYONU", font=("Segoe UI", 10, "bold"), bg=THY_BG_LIGHT, fg=THY_RED).pack(pady=(5,5))
+        
+        tk.Label(auto_f, text="Outlook Klasör Adı:", bg=THY_BG_LIGHT, fg="#111827", font=("Segoe UI", 10, "bold")).pack(anchor="w")
+        self.ent_folder = tk.Entry(auto_f, font=("Segoe UI", 9))
         self.ent_folder.insert(0, "jet fuel")
-        self.ent_folder.pack(fill=tk.X, padx=20, pady=2)
+        self.ent_folder.pack(fill=tk.X, pady=(2,10))
 
+        # Butonu data_f içine pack ediyoruz (create_button zaten kendi içinde pack yapıyor)
         self.btn_auto_update = self.create_button(data_f, "📩 OUTLOOK'TAN GÜNCELLE", self.run_outlook_pipeline, THY_RED, THY_WHITE, hover_color=THY_RED_HOVER)
         
         tk.Frame(data_f, height=2, bg="#E5E7EB").pack(fill=tk.X, padx=20, pady=10) # Ayırıcı Çizgi
