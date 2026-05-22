@@ -10,6 +10,12 @@ def check_and_download_specific_mails(folder_name="jet fuel"):
     """
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
+    else:
+        # Önce klasörü temizle (Eski dosyalar kalmasın)
+        for f in os.listdir(SAVE_DIR):
+            try: os.remove(os.path.join(SAVE_DIR, f))
+            except: pass
+        print(f"Klasör temizlendi: {SAVE_DIR}")
 
     try:
         outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")

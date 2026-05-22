@@ -21,16 +21,16 @@ def process_and_merge_files():
     wb_y = openpyxl.load_workbook(path_y)
     ws_y = wb_y.active
 
-    # 5. satırdaki başlıkları bul
-    headers_x = [cell.value for cell in ws_x[5]]
-    headers_y = [cell.value for cell in ws_y[5]]
+    # 5. satırdaki başlıkları bul (Daha esnek arama)
+    headers_x = [str(cell.value).strip().upper() for cell in ws_x[5]]
+    headers_y = [str(cell.value).strip().upper() for cell in ws_y[5]]
 
     try:
         col_bcsl = headers_x.index("BCSL0018") + 1
         col_aazbn = headers_y.index("AAZBN00") + 1
-        print(f"Sütunlar bulundu: BCSL0018 (Kolon {col_bcsl}), AAZBN00 (Kolon {col_aazbn})")
+        print(f"Sütunlar bulundu: BCSL (Kolon {col_bcsl}), AAZBN (Kolon {col_aazbn})")
     except ValueError as e:
-        print(f"HATA: Sütun başlıkları 5. satırda bulunamadı! {e}")
+        print(f"HATA: Sütun başlıkları 5. satırda bulunamadı! Mevcut başlıklar: {headers_x}")
         return
 
     # MANTIK: X dosyasını ana taslak olarak kullanacağız.
