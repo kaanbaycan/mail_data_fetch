@@ -801,7 +801,8 @@ class MarketApp:
                 df_up = df_up[["Unnamed: 0","BCSL0018","AAZBN00"]]
                 df_up = df_up.iloc[2:,].copy().dropna()
                 df_up.columns = ["tarih","brent","cif med"]
-                df_up["tarih"] = pd.to_datetime(df_up["tarih"])
+                df_up["tarih"] = pd.to_datetime(df_up["tarih"], errors='coerce')
+                df_up = df_up.dropna(subset=["tarih"])
                 
                 # Convert update data to numeric
                 df_up["brent"] = pd.to_numeric(df_up["brent"], errors='coerce')
@@ -922,14 +923,17 @@ class MarketApp:
         except Exception as e:
             self.lbl_file_status.config(text="❌ Hata oluştu.")
             messagebox.showerror("Sistem Hatası", f"Beklenmedik bir hata: {e}")
+def load_automated_excel(self, path):
+    """Otomatik besleme için load_update_excel'in basitleştirilmiş hali."""
+    try:
+        df_up = pd.read_excel(path, skiprows=4)
+        df_up = df_up.iloc[:, [0, 1, 2]]
+        df_up.columns = ["tarih","brent","cif med"]
 
-    def load_automated_excel(self, path):
-        """Otomatik besleme için load_update_excel'in basitleştirilmiş hali."""
-        try:
-            df_up = pd.read_excel(path, skiprows=4)
-            df_up = df_up.iloc[:, [0, 1, 2]]
-            df_up.columns = ["tarih","brent","cif med"]
-            df_up["tarih"] = pd.to_datetime(df_up["tarih"])
+        # Tarih dönüşümü (Hatalı formatları NaT yapar, sonra temizleriz)
+        df_up["tarih"] = pd.to_datetime(df_up["tarih"], errors='coerce')
+        df_up = df_up.dropna(subset=["tarih"])
+
             df_up["brent"] = pd.to_numeric(df_up["brent"], errors='coerce')
             df_up["cif med"] = pd.to_numeric(df_up["cif med"], errors='coerce')
             df_up = df_up.dropna(subset=["tarih"])
