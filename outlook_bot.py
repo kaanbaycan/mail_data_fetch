@@ -4,68 +4,79 @@ from datetime import datetime, date
 
 SAVE_DIR = "indirilen_ekler"
 
+def find_folder_recursive(folders, name):
+    """Outlook klasörleri içinde ismi eşleşeni derinlemesine arar."""
+    for folder in folders:
+        if folder.Name.lower() == name.lower():
+            return folder
+        res = find_folder_recursive(folder.Folders, name)
+        if res: return res
+    return None
+
 def check_and_download_specific_mails(folder_name="jet fuel"):
-    """
-    Belirlenen klasörde BUGÜN gelen son 2 mailin eklerini indirir.
-    """
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
     else:
-        # Önce klasörü temizle (Eski dosyalar kalmasın)
         for f in os.listdir(SAVE_DIR):
             try: os.remove(os.path.join(SAVE_DIR, f))
             except: pass
-        print(f"Klasör temizlendi: {SAVE_DIR}")
 
     try:
         outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
-        root_folder = outlook.GetDefaultFolder(6) # Inbox
         
-        try:
-            target_folder = root_folder.Folders[folder_name]
-        except:
-            try:
-                target_folder = root_folder.Parent.Folders[folder_name]
-            except:
-                print(f"HATA: '{folder_name}' klasörü bulunamadı!")
-                return False
+        # Daha sağlam klasör bulma (Tüm hesapları tarar)
+        target_folder = None
+        for store in outlook.Stores:
+            target_folder = find_folder_recursive(store.GetRootFolder().Folders, folder_name)
+            if target_folder: break
+
+        if not target_folder:
+            print(f"HATA: '{folder_name}' klasörü hiçbir hesapta bulunamadı!")
+            return False
 
         messages = target_folder.Items
-        messages.Sort("[ReceivedTime]", True) # En yeni en üstte
+        messages.Sort("[ReceivedTime]", True)
 
         today = date.today()
         found_mails = []
 
-        print(f"\n--- '{target_folder.Name}' Klasöründe Bugünün Mailleri Taranıyor ---")
+        print(f"'{target_folder.Name}' taranıyor. Bugünün ekli mailleri aranıyor...")
         
         for message in messages:
             try:
-                if message.ReceivedTime.date() == today:
+                # Sadece bugünün mailleri
+                if message.ReceivedTime.date() != today:
+                    if message.ReceivedTime.date() < today: break
+                    continue
+                
+                # SADECE EXCEL EKİ OLANLARI SAY
+                has_excel = False
+                for att in message.Attachments:
+                    if att.FileName.lower().endswith((".xlsx", ".xls")):
+                        has_excel = True
+                        break
+                
+                if has_excel:
                     found_mails.append(message)
+                    print(f"Uygun mail bulundu: {message.Subject}")
                 
-                if len(found_mails) == 2:
-                    break
-                
-                if message.ReceivedTime.date() < today:
-                    break
-            except:
-                continue
+                if len(found_mails) == 2: break
+            except: continue
 
         if len(found_mails) == 2:
-            print("\nBAŞARILI: Bugün gelen 2 mail bulundu. Ekler indiriliyor...")
-            # İlkini X_file, ikincisini Y_file olarak kaydet (İşleyici için)
+            print("2 adet ekli mail bulundu. İndiriliyor...")
             for i, msg in enumerate(found_mails):
                 suffix = "X_file.xlsx" if i == 0 else "Y_file.xlsx"
-                for attachment in msg.Attachments:
-                    if attachment.FileName.endswith((".xlsx", ".xls")):
-                        file_path = os.path.join(os.getcwd(), SAVE_DIR, suffix)
-                        attachment.SaveAsFile(file_path)
-                        print(f"    -> {suffix} olarak kaydedildi.")
+                for att in msg.Attachments:
+                    if att.FileName.lower().endswith((".xlsx", ".xls")):
+                        att.SaveAsFile(os.path.join(os.getcwd(), SAVE_DIR, suffix))
+                        print(f" -> {suffix} kaydedildi.")
+                        break
             return True
         else:
-            print(f"\nEKSİK: Bugün sadece {len(found_mails)} mail bulundu. 2 mail bekleniyor.")
+            print(f"HATA: Bugün sadece {len(found_mails)} adet Excel ekli mail bulundu.")
             return False
 
     except Exception as e:
-        print(f"Hata: {e}")
+        print(f"Outlook Hatası: {e}")
         return False
